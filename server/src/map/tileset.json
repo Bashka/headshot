@@ -1,14 +1,14 @@
-{ "columns":8,
- "image":"..\/..\/..\/..\/tiles\/tileimg.png",
- "imageheight":256,
- "imagewidth":256,
+{ "columns":4,
+ "image":"..\/..\/..\/client\/assets\/images\/ground.png",
+ "imageheight":32,
+ "imagewidth":128,
  "margin":0,
  "name":"tileset",
  "spacing":0,
- "tilecount":64,
- "tiledversion":"1.8.4",
+ "tilecount":4,
+ "tiledversion":"1.7.1",
  "tileheight":32,
  "tilewidth":32,
  "type":"tileset",
- "version":"1.8"
+ "version":"1.6"
 }

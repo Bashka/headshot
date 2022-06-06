@@ -1,10 +1,13 @@
+export type Listener<T> = (data: T) => unknown;
+
 export interface Signal<T> {
-  (listener: T | ((data: T) => unknown)): any;
+  (dataOrListener: T | Listener<T>): unknown;
 }
 
-export function signal<T>(
-  listener: (data: T) => unknown = () => {}
-): Signal<T> {
-  return (d: typeof listener | T) =>
-    typeof d === "function" ? (listener = d as typeof listener) : listener(d);
+export function signal<T>(listener?: Listener<T>): Signal<T> {
+  const listeners = listener ? [listener] : [];
+  return (dataOrListener) =>
+    typeof dataOrListener === "function"
+      ? listeners.push(dataOrListener as Listener<T>)
+      : listeners.forEach((listener) => listener(dataOrListener));
 }

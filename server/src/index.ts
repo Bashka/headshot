@@ -6,7 +6,8 @@ import tileset from "./map/tileset.json" assert { type: "json" };
 import tilemap from "./map/tilemap.json" assert { type: "json" };
 import * as Tiled from "./tiled.js";
 import { Room } from "./room.js";
-import { World, Person } from "./model/index.js";
+import { Sprite, PersonAnimation } from "./model/types.js";
+import { World, Weapon } from "./model/index.js";
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -19,58 +20,90 @@ app.use(
   "/images",
   express.static(path.resolve(dirname, "../../client/assets/images"))
 );
+app.use(
+  "/sounds",
+  express.static(path.resolve(dirname, "../../client/assets/sounds"))
+);
 app.get("/", (_, res) =>
   res.sendFile(path.resolve(dirname, "../../client/assets/index.html"))
 );
 
 const map = new Tiled.Loader(tileset as any, tilemap as any);
 const room = new Room(
-  new World.World({
-    width: 800,
-    height: 600,
-    fps: 60,
-    me: "",
-    sprites: {
-      [Person.PersonSprite.Man]: {
-        url: "/images/man.png",
-        animations: {
-          [Person.PersonAnimation.Stay]: {
-            speed: 0,
-            frames: [[32, 64, 32, 32]],
+  new World.World(
+    {
+      width: 1366,
+      height: 768,
+      fps: 60,
+      me: "",
+      resources: {
+        ground: "/images/ground.png",
+        shipTiny1: "/images/ship_tiny1.png",
+        bullet: "/images/bullet.png",
+        laser: "/sounds/laser.mp3",
+      },
+      sprites: {
+        [Sprite.Bullet]: {
+          resource: "bullet",
+          animations: {
+            [0]: {
+              speed: 0,
+              frames: [[0, 0, 16, 16]],
+            },
+          },
+        },
+        [Sprite.ShipTiny1]: {
+          resource: "shipTiny1",
+          animations: {
+            [PersonAnimation.Stay]: {
+              speed: 0,
+              frames: [[0, 0, 28, 33]],
+            },
+            [PersonAnimation.Move]: {
+              speed: 0,
+              frames: [[28, 0, 28, 33]],
+            },
           },
         },
       },
-    },
-    map: {
-      tileset: {
-        tile: {
-          width: map.tileset.tilewidth,
-          height: map.tileset.tileheight,
-        },
-        image: {
-          url: "/images/tileset.png",
-          width: map.tileset.imagewidth,
-          height: map.tileset.imageheight,
-        },
+      weapons: {
+        [Weapon.WeaponType.Non]: "non",
+        [Weapon.WeaponType.Pistol]: "pistol",
+        [Weapon.WeaponType.Shutgun]: "shutgun",
+        [Weapon.WeaponType.Machinegun]: "machinegun",
       },
-      width: map.width,
-      height: map.height,
-      layers: map.tiles.map(({ data, properties }) => ({
-        tiles: data,
-        zIndex:
-          properties?.find(
-            (property): property is Tiled.Config.IntProperty =>
-              property.name === "zIndex" && property.type === "int"
-          )?.value ?? 0,
-      })),
+      map: {
+        tileset: {
+          tile: {
+            width: map.tileset.tilewidth,
+            height: map.tileset.tileheight,
+          },
+          image: {
+            resource: "ground",
+            width: map.tileset.imagewidth,
+            height: map.tileset.imageheight,
+          },
+        },
+        width: map.width,
+        height: map.height,
+        layers: map.tiles.map(({ data, properties }) => ({
+          tiles: data,
+          zIndex:
+            properties?.find(
+              (property): property is Tiled.Config.IntProperty =>
+                property.name === "zIndex" && property.type === "int"
+            )?.value ?? 0,
+        })),
+      },
     },
-  })
+    map
+  )
 );
 room.onConnection(({ channel }) => {
   if (!channel.id) return;
   console.log(`${channel.id} connected`);
   const { world } = room;
-  const person = world.createPerson({ x: 40, y: 40 }, 0);
+  const person = world.createPerson({ x: 40, y: 40 });
   world.linkPlayer(channel.id, person);
   world.options.me = person.id;
   channel.on("key", (data: any) => channel.id && world.key(channel.id, data));

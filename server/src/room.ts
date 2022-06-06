@@ -6,8 +6,10 @@ import { Signal, signal } from "./signal.js";
 import { Runner, ElasticRunner } from "./runner.js";
 
 export namespace types {
+  export type Thunk<T> = (() => T) | T;
+
   export interface Body<S extends Entity> {
-    state: S;
+    state: Thunk<S>;
   }
 
   export type StateOf<B> = B extends Body<infer S> ? S : never;
@@ -20,7 +22,7 @@ export namespace types {
 
   export interface World<O> {
     options: Readonly<O>;
-    state: Readonly<Record<string, Bodies<any>>>;
+    state: Readonly<Record<string, Body<any>>>;
     schema: Readonly<Schema.Model>;
     update(delta: number): any;
   }
@@ -62,7 +64,9 @@ export class Hash<B extends types.Body<any>> implements types.Bodies<B> {
   }
 
   get state() {
-    return Array.from(this.bodies.values()).map(({ state }) => state);
+    return Array.from(this.bodies.values()).map(({ state }) =>
+      typeof state === "function" ? state() : state
+    );
   }
 }
 
@@ -106,7 +110,7 @@ export class Room<W extends types.World<{ fps: number }>> {
     const state = Object.entries(this.world.state).reduce(
       (result, [name, { state }]) => ({
         ...result,
-        [name]: state,
+        [name]: typeof state === "function" ? state() : state,
       }),
       {}
     );

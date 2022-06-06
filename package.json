@@ -24,6 +24,7 @@
     "matter-js": "^0.18.0",
     "nanoid": "^3.3.2",
     "parcel": "^2.4.1",
+    "pixi-viewport": "^4.34.4",
     "pixi.js": "^6.3.0",
     "tsc-watch": "^5.0.3",
     "tslib": "^2.3.1",

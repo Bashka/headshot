@@ -4,7 +4,7 @@ import { Model as Serializer } from "@geckos.io/typed-array-buffer-schema";
 import { signal, Signal } from "../../server/src/signal";
 
 interface Animator {
-  onFrame: Signal<null>;
+  onFrame: Signal<void>;
   play(): this;
   stop(): this;
 }
@@ -12,12 +12,12 @@ interface Animator {
 export class RequestFrameAnimator implements Animator {
   protected _isStoped = true;
 
-  public readonly onFrame = signal<null>();
+  public readonly onFrame = signal<void>();
 
   protected animate() {
     if (this._isStoped) return;
     requestAnimationFrame(this.animate.bind(this));
-    this.onFrame(null);
+    this.onFrame();
   }
 
   play() {

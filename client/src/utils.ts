@@ -2,13 +2,15 @@ import * as PixiJS from "pixi.js";
 import { signal } from "../../server/src/signal";
 import { Keyboard as YandeuKeyboard } from "@yandeu/keyboard";
 
+export type Thunk<T> = (() => T) | T;
+
 export interface Animation {
   speed: number;
   frames: [number, number, number, number][];
 }
 
 export interface Sprite {
-  url: string;
+  resource: string;
   animations: {
     [animation: number]: Animation;
   };
@@ -16,11 +18,11 @@ export interface Sprite {
 
 export const playAnimation =
   (
-    resources: Record<number, { texture?: PixiJS.Texture }>,
+    resources: PixiJS.utils.Dict<PixiJS.LoaderResource>,
     sprites: { [sprite: number]: Sprite }
   ) =>
   (sprite: number, animation: number): PixiJS.AnimatedSprite => {
-    const texture = resources[sprite].texture;
+    const texture = resources[sprites[sprite].resource].texture;
     if (!texture) {
       throw new Error(`Texture for sprite "${sprite}" not found`);
     }
@@ -39,6 +41,14 @@ export const playAnimation =
     view.animationSpeed = speed;
     view.play();
     return view;
+  };
+
+export const playSound =
+  (resources: PixiJS.utils.Dict<PixiJS.LoaderResource>) => (sound: string) => {
+    const audio = resources[sound]?.data;
+    if (!audio) throw new Error(`Sound "${sound}" not found`);
+    audio.currentTime = 0;
+    audio.play();
   };
 
 export function keyboard<K extends string>(
