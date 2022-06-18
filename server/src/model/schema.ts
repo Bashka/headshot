@@ -34,16 +34,11 @@ export default new Model(
           y: int64,
           angle: float32,
           hp: int64,
+          ammo: int64,
+          weapon: uint8,
           sprite: uint8,
           animation: uint8,
-        }),
-      ],
-      weapons: [
-        BufferSchema.schema("weapon", {
-          id,
           owner: id,
-          bullets: uint64,
-          type: uint8,
         }),
       ],
       bullets: [

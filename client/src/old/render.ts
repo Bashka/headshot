@@ -1,9 +1,9 @@
 import { ClientChannel } from "@geckos.io/client";
 import { SnapshotInterpolation } from "@geckos.io/snapshot-interpolation";
 import { Model as Serializer } from "@geckos.io/typed-array-buffer-schema";
-import { signal, Signal } from "../../server/src/signal";
+import { signal, Signal } from "../../../server/src/signal";
 
-interface Animator {
+export interface Animator {
   onFrame: Signal<void>;
   play(): this;
   stop(): this;
@@ -100,10 +100,6 @@ export class Stage<K extends string> {
 
   public readonly animator: Animator;
 
-  public readonly onAdd = signal<any>();
-
-  public readonly onDelete = signal<any>();
-
   constructor(
     public readonly views: Record<K, View<any, any>>,
     options: StageOptions
@@ -113,10 +109,6 @@ export class Stage<K extends string> {
     this.SI = options.SI ?? new SnapshotInterpolation(options.fps ?? 60);
     this.animator = options.animator ?? new RequestFrameAnimator();
 
-    for (const name in views) {
-      views[name].render.onAdd(this.onAdd);
-      views[name].render.onDelete(this.onDelete);
-    }
     this.channel.onRaw((buffer) => {
       if (!(buffer instanceof ArrayBuffer)) return;
 

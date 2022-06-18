@@ -2,14 +2,16 @@ import { ClientChannel } from "@geckos.io/client";
 import * as PixiJS from "pixi.js";
 import { Viewport } from "pixi-viewport";
 import { Tap } from "@yandeu/tap";
-import { signal } from "../../server/src/signal";
-import serializer from "../../server/src/model/schema";
+import { signal } from "../../../server/src/signal";
+import serializer from "../../../server/src/model/schema";
 import { Render, Room, Stage } from "./render";
-import { Sprite, keyboard, playAnimation, playSound } from "./utils";
+import { Sprite, keyboard, playAnimation, playSound } from "../utils";
 
 interface Context {
+  me: string;
   playAnimation: ReturnType<typeof playAnimation>;
   playSound: ReturnType<typeof playSound>;
+  weapons: { [i: number]: string };
 }
 
 export const soundView = ({
@@ -66,15 +68,19 @@ export const soundView = ({
     }
   );
 
-export const personView = ({ playAnimation }: Context) =>
+export const personView = ({ playAnimation, weapons }: Context) =>
   new Render(
     ({
+      id,
       x,
       y,
       angle,
       sprite,
       animation,
       hp,
+      ammo,
+      weapon,
+      owner,
     }: {
       id: string;
       sprite: number;
@@ -83,27 +89,67 @@ export const personView = ({ playAnimation }: Context) =>
       y: number;
       angle: number;
       hp: number;
+      ammo: number;
+      weapon: number;
+      owner: string;
     }) => {
       const view = new PixiJS.Container();
       view.zIndex = 1;
       view.position.set(x, y);
       view.rotation = angle;
+
       const collision = playAnimation(sprite, animation);
       collision.angle = 90;
       view.addChild(collision);
 
+      const ui = {
+        hp: new PixiJS.Text(`hp: ${hp}`, {
+          fontFamily: "Arial",
+          fontSize: 14,
+          fill: 0xffffff,
+          align: "right",
+        }),
+        ammo: new PixiJS.Text(`ammo: ${ammo}`, {
+          fontFamily: "Arial",
+          fontSize: 14,
+          fill: 0xffffff,
+          align: "right",
+        }),
+        weapon: new PixiJS.Text(`weapon: ${weapons[weapon]}`, {
+          fontFamily: "Arial",
+          fontSize: 14,
+          fill: 0xffffff,
+          align: "right",
+        }),
+        menu: new PixiJS.Text(id, {
+          fontFamily: "Arial",
+          fontSize: 14,
+          fill: 0xffffff,
+          align: "right",
+        }),
+      };
+
       return {
         view,
+        child: { collision, ui },
+        id,
         sprite,
         animation,
         hp,
+        ammo,
+        weapon,
+        owner,
       };
     },
-    ({ x, y, angle, hp, sprite, animation }, view) => {
+    ({ x, y, angle, hp, ammo, weapon, sprite, animation }, view) => {
       view.view.position.set(x, y);
       view.view.rotation = angle;
+      view.hp = hp;
+      view.ammo = ammo;
+      view.child.ui.hp.text = `hp: ${hp}`;
+      view.child.ui.ammo.text = `ammo: ${ammo}`;
+      view.child.ui.weapon.text = `weapon: ${weapons[weapon]}`;
       if (hp !== view.hp) {
-        view.hp = hp;
         view.view.alpha = 0.5;
         setTimeout(() => (view.view.alpha = 1), 100);
       }
@@ -115,49 +161,6 @@ export const personView = ({ playAnimation }: Context) =>
         collision.angle = 90;
         view.view.addChild(collision);
       }
-    }
-  );
-
-export const weaponView = ({
-  me,
-  weapons,
-  height,
-}: Context & {
-  me: string;
-  weapons: { [n: number]: string };
-  width: number;
-  height: number;
-}) =>
-  new Render(
-    ({
-      owner,
-      bullets,
-      type,
-    }: {
-      id: string;
-      owner: string;
-      bullets: number;
-      type: number;
-    }) => {
-      if (me !== owner) return {};
-      const view = new PixiJS.Container();
-      view.position.set(20, height - 40);
-
-      const text = new PixiJS.Text(`${weapons[type]}: ${bullets}`, {
-        fontFamily: "Arial",
-        fontSize: 14,
-        fill: 0xffffff,
-        align: "right",
-      });
-      view.addChild(text);
-      if (type === 0) text.visible = false;
-
-      return { view, child: { text } };
-    },
-    ({ type, bullets }, view) => {
-      if (!view.child) return;
-      if (type === 0) view.child.text.visible = false;
-      view.child.text.text = `${weapons[type]}: ${bullets}`;
     }
   );
 
@@ -321,6 +324,44 @@ export default class implements Room {
     );
   }
 
+  protected createUI() {
+    const ui = {
+      container: new PixiJS.Container(),
+      player: {
+        container: new PixiJS.Container(),
+        weapon: new PixiJS.Container(),
+        hp: new PixiJS.Container(),
+        ammo: new PixiJS.Container(),
+      },
+      menu: {
+        container: new PixiJS.Container(),
+        attacking: new PixiJS.Container(),
+      },
+    };
+
+    // Player
+    ui.player.container.position.set(
+      this.options.width - 150,
+      this.options.height - 70
+    );
+    ui.player.weapon.position.set(5, 5);
+    ui.player.hp.position.set(5, 25);
+    ui.player.ammo.position.set(5, 45);
+    ui.player.container.addChild(
+      ui.player.weapon,
+      ui.player.hp,
+      ui.player.ammo
+    );
+    ui.container.addChild(ui.player.container);
+
+    // Menu
+    ui.menu.container.position.set(50, 50);
+    ui.menu.container.addChild(ui.menu.attacking);
+    ui.container.addChild(ui.menu.container);
+
+    return ui;
+  }
+
   create(resources: PixiJS.utils.Dict<PixiJS.LoaderResource>) {
     document.getElementById("canvas")?.appendChild(this.pixi.view);
     this.pixi.view.style.display = "block";
@@ -330,6 +371,8 @@ export default class implements Room {
     const foreground = new PixiJS.Container();
     foreground.sortableChildren = true;
     foreground.zIndex = 10;
+    const ui = this.createUI();
+    foreground.addChild(ui.container);
     this.pixi.stage.addChild(foreground);
 
     const viewport = new Viewport({
@@ -354,6 +397,8 @@ export default class implements Room {
     viewport.addChild(world);
 
     const context: Context = {
+      me: this.options.me,
+      weapons: this.options.weapons,
       playAnimation: playAnimation(resources, this.options.sprites),
       playSound: playSound(resources),
     };
@@ -365,15 +410,6 @@ export default class implements Room {
         persons: {
           SIDeep: "x y angle(rad)",
           render: personView(context),
-        },
-        weapons: {
-          render: weaponView({
-            ...context,
-            width: this.options.width,
-            height: this.options.height,
-            weapons: this.options.weapons,
-            me: this.options.me,
-          }),
         },
         bullets: {
           SIDeep: "x y",
@@ -389,34 +425,48 @@ export default class implements Room {
       { channel: this.channel, serializer, fps: this.options.fps }
     );
     stage.views.persons.render.onAdd(
-      ({ view }: any) => view && world.addChild(view)
+      ({
+        view,
+        id,
+        owner,
+        child: {
+          ui: { hp, ammo, weapon, menu },
+        },
+      }: any) => {
+        view && world.addChild(view);
+        if (this.options.me === id) {
+          ui.player.hp.addChild(hp);
+          ui.player.ammo.addChild(ammo);
+          ui.player.weapon.addChild(weapon);
+        }
+        if (this.options.me === owner && this.options.me !== id) {
+          ui.menu.attacking.addChild(menu);
+        }
+      }
     );
     stage.views.persons.render.onDelete(
-      ({ view }: any) => view && world.removeChild(view)
+      ({
+        view,
+        id,
+        owner,
+        child: {
+          ui: { menu },
+        },
+      }: any) => {
+        view && world.removeChild(view);
+        if (this.options.me === id) {
+          ui.container.removeChildren();
+        }
+        if (this.options.me === owner && this.options.me !== id) {
+          ui.menu.attacking.removeChild(menu);
+        }
+      }
     );
-    stage.views.bullets.render.onAdd(
-      ({ view }: any) => view && world.addChild(view)
-    );
-    stage.views.bullets.render.onDelete(
-      ({ view }: any) => view && world.removeChild(view)
-    );
-    stage.views.walls.render.onAdd(
-      ({ view }: any) => view && world.addChild(view)
-    );
-    stage.views.walls.render.onDelete(
-      ({ view }: any) => view && world.removeChild(view)
-    );
-    stage.views.items.render.onAdd(
-      ({ view }: any) => view && world.addChild(view)
-    );
-    stage.views.items.render.onDelete(
-      ({ view }: any) => view && world.removeChild(view)
-    );
-    stage.views.weapons.render.onAdd(
-      ({ view }: any) => view && foreground.addChild(view)
-    );
-    stage.views.weapons.render.onDelete(
-      ({ view }: any) => view && foreground.removeChild(view)
+    [stage.views.bullets, stage.views.walls, stage.views.items].forEach(
+      ({ render }) => {
+        render.onAdd(({ view }: any) => view && world.addChild(view));
+        render.onDelete(({ view }: any) => view && world.removeChild(view));
+      }
     );
     stage.animator.onFrame(() => {
       const person = stage.views.persons.render.views.get(this.options.me);

@@ -111,6 +111,17 @@ room.onConnection(({ channel }) => {
     "rotate",
     (data: any) => channel.id && world.rotate(channel.id, data)
   );
+
+  world.createRandomPerson(200, 200, { owner: person.id });
+  world.createRandomPerson(200, 200, { owner: person.id });
+  world.createRandomPerson(200, 200, { owner: person.id });
+  world.createRandomPerson(200, 200, { owner: person.id });
+  world.createRandomPerson(200, 200, { owner: person.id });
+  world.createRandomPerson(200, 200, { owner: person.id });
+  world.createRandomPerson(200, 200, { owner: person.id });
+  world.createRandomPerson(200, 200, { owner: person.id });
+  world.createRandomPerson(200, 200, { owner: person.id });
+  world.createRandomPerson(200, 200, { owner: person.id });
 });
 room.onDisconnect(({ channel }) => {
   if (!channel.id) return;
@@ -118,7 +129,13 @@ room.onDisconnect(({ channel }) => {
   const { world } = room;
   const playerPerson = world.getPlayerPerson(channel.id);
   world.unlinkPlayer(channel.id);
-  if (playerPerson) world.removePerson(playerPerson);
+  if (!playerPerson) return;
+  world.removePerson(playerPerson);
+
+  world.state.persons.bodies.forEach((person) => {
+    if (person.owner !== playerPerson.id) return;
+    world.removePerson(person);
+  });
 });
 room.server.addServer(server);
 room.runner.play();

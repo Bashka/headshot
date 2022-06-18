@@ -4,10 +4,11 @@ import { types, Hash } from "../room.js";
 import schema from "./schema.js";
 import { Pos, PersonAnimation } from "./types.js";
 import * as Weapon from "./weapon.js";
-import { Person } from "./person.js";
+import { Person, Options as PersonOptions } from "./person.js";
 import { Item } from "./item.js";
 import * as Tiled from "../tiled.js";
 import * as random from "../random.js";
+import { Sound } from "./sound.js";
 
 declare global {
   namespace Matter {
@@ -89,17 +90,15 @@ export class World implements types.World<Options> {
   public readonly state = {
     sounds: {
       state: () =>
-        Array.from(this.state.persons.bodies.values()).map(
-          ({ weapon: { fireSound } }) => fireSound.state
+        Array.from(this.state.persons.bodies.values()).reduce<
+          Array<Sound["state"]>
+        >(
+          (result, { weapon: { fireSound } }) =>
+            fireSound ? [...result, fireSound.state] : result,
+          []
         ),
     },
     persons: new Hash<Person>(),
-    weapons: {
-      state: () =>
-        Array.from(this.state.persons.bodies.values()).map(
-          ({ id, weapon }) => ({ owner: id, ...weapon.state })
-        ),
-    },
     bullets: new Hash<Weapon.Bullet>(),
     items: new Hash<Item>(),
     walls: new Hash<Wall>(),
@@ -143,7 +142,7 @@ export class World implements types.World<Options> {
         if (!person || !bullet) return;
 
         this.state.bullets.delete(bullet);
-        person.onDamage(1);
+        person.onDamage(bullet.damage);
       })
     );
     Matter.Events.on(this.physics, "collisionStart", ({ pairs }) =>
@@ -177,23 +176,16 @@ export class World implements types.World<Options> {
       })
     );
 
-    const wallsConfig = map.objects.find(({ name }) => name === "walls");
-    if (wallsConfig) {
-      this.createWalls(
-        wallsConfig.objects.map(({ x, y, width, height }) => ({
+    this.createWalls(
+      (map.objects.find(({ name }) => name === "walls")?.objects ?? []).map(
+        ({ x, y, width, height }) => ({
           pos: { x: x + width / 2, y: y + height / 2 },
           width,
           height,
-        }))
-      );
-    }
-    const enemy = this.createRandomPerson(800, 600);
-    enemy.weapon = new Weapon.Pistol(999);
-    enemy.onAI(() => {
-      if (enemy.weapon.energy === 1) {
-        this.state.bullets.add(...enemy.weapon.fire(enemy));
-      }
-    });
+        })
+      )
+    );
+    // this.createRandomPerson(800, 600);
     this.createRandomItem(800, 600);
   }
 
@@ -244,15 +236,22 @@ export class World implements types.World<Options> {
     );
   }
 
-  createRandomPerson(width: number, height: number) {
-    return this.createPerson({
-      x: 50 + Math.floor(Math.random() * (width - 100)),
-      y: 50 + Math.floor(Math.random() * (height - 100)),
-    });
+  createRandomPerson(
+    width: number,
+    height: number,
+    options: PersonOptions = {}
+  ) {
+    return this.createPerson(
+      {
+        x: 50 + Math.floor(Math.random() * (width - 100)),
+        y: 50 + Math.floor(Math.random() * (height - 100)),
+      },
+      options
+    );
   }
 
-  createPerson(pos: Pos, angle = 0) {
-    const person = new Person(pos, angle, 180, 5);
+  createPerson(pos: Pos, options: PersonOptions = {}) {
+    const person = new Person(pos, { hp: 5, speed: 180, ...options });
     person.onDie(() => {
       this.removePerson(person);
       this.createRandomPerson(800, 600);
@@ -348,8 +347,8 @@ export class World implements types.World<Options> {
           Matter.Vector.mult(Matter.Vector.normalise(force), person.speed * d)
         )
       );
-      if (!(person.weapon instanceof Weapon.Non) && keyboard.has("tap")) {
-        this.state.bullets.add(...person.weapon.fire(person));
+      if (keyboard.has("tap")) {
+        this.state.bullets.add(...person.fire());
       }
     });
     this.state.persons.bodies.forEach((person) => person.update(d));

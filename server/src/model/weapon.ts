@@ -5,17 +5,31 @@ import { Person } from "./person.js";
 import { dice } from "../random.js";
 import { Sound } from "./sound.js";
 
+export interface BulletOptions {
+  speed?: number;
+  ttl?: number;
+  damage?: number;
+}
+
 export class Bullet {
   public readonly id = nanoid(6);
 
   public readonly sprite = Sprite.Bullet;
 
+  public speed;
+
+  public damage;
+
+  public ttl;
+
   constructor(
     public readonly body: Matter.Body,
-    public speed: number,
-    public ttl = 10
+    { speed, ttl, damage }: BulletOptions
   ) {
     this.body.meta = { id: this.id, type: "bullet" };
+    this.speed = speed ?? 100;
+    this.ttl = ttl ?? 100;
+    this.damage = damage ?? 1;
   }
 
   get state() {
@@ -39,51 +53,48 @@ export enum WeaponType {
 export abstract class Weapon {
   public readonly id = nanoid(6);
 
+  public readonly type: WeaponType = WeaponType.Non;
+
   public energy = 1;
 
   public cooldown = 1;
 
+  public consumption = 1;
+
   public scatter = dice(-0.1, 0.1);
 
-  public fireSound = new Sound("laser", 0.4, 0.1, 500);
+  public fireSound: Sound | null = null;
 
-  constructor(public bullets = 0) {}
+  constructor() {}
 
   abstract createBullets(pos: Pos, angle: number): Bullet[];
 
-  fire(person: Person): Bullet[] {
-    if (this.energy < 1 || this.bullets <= 0) return [];
+  fire(pos: Pos, angle: number): Bullet[] {
+    if (this.energy < 1) return [];
     this.energy = 0;
-    this.bullets -= 1;
-    this.fireSound.position = person.body.position;
-    this.fireSound.play();
-    return this.createBullets(
-      Matter.Vector.add(
-        Matter.Vector.rotate(
-          Matter.Vector.create(Person.RADIUS + 5, 0),
-          person.body.angle
-        ),
-        person.body.position
-      ),
-      person.body.angle
-    );
+    if (this.fireSound) {
+      this.fireSound.position = pos;
+      this.fireSound.play();
+    }
+    return this.createBullets(pos, angle);
   }
 
   get state() {
     return {
       id: this.id,
-      bullets: this.bullets,
     };
   }
 
   update(d: number) {
-    this.fireSound.update(d);
+    this.fireSound?.update(d);
     this.energy = Math.min(1, this.energy + this.cooldown * d);
   }
 }
 
 export class Non extends Weapon {
   public cooldown = 0;
+
+  public consumption = 0;
 
   createBullets() {
     return [];
@@ -99,12 +110,14 @@ export class Non extends Weapon {
 
 export class Pistol extends Weapon {
   static take = (person: Person) => {
-    if (person.weapon instanceof Pistol) {
-      person.weapon.bullets += 10;
-    } else {
-      person.weapon = new Pistol(10);
+    if (!(person.weapon instanceof Pistol)) {
+      person.weapon = new Pistol();
     }
   };
+
+  public readonly type = WeaponType.Pistol;
+
+  public fireSound = new Sound("laser", 0.4, 0.1, 500);
 
   public cooldown = 1;
 
@@ -117,8 +130,10 @@ export class Pistol extends Weapon {
           angle: angle + this.scatter(),
           isSensor: true,
         }),
-        600,
-        1
+        {
+          speed: 600,
+          damage: 1,
+        }
       ),
     ];
   }
@@ -133,12 +148,15 @@ export class Pistol extends Weapon {
 
 export class Shutgun extends Weapon {
   static take = (person: Person) => {
-    if (person.weapon instanceof Shutgun) {
-      person.weapon.bullets += 5;
-    } else {
-      person.weapon = new Shutgun(5);
+    if (!(person.weapon instanceof Shutgun)) {
+      person.weapon = new Shutgun();
     }
   };
+
+  public readonly type = WeaponType.Shutgun;
+
+
+  public fireSound = new Sound("laser", 0.4, 0.1, 500);
 
   public cooldown = 0.75;
 
@@ -152,8 +170,11 @@ export class Shutgun extends Weapon {
             angle: angle + this.scatter(),
             isSensor: true,
           }),
-          600,
-          1.4
+          {
+            speed: 600,
+            ttl: 1.4,
+            damage: 2,
+          }
         )
     );
   }
@@ -168,12 +189,14 @@ export class Shutgun extends Weapon {
 
 export class Machinegun extends Weapon {
   static take = (person: Person) => {
-    if (person.weapon instanceof Machinegun) {
-      person.weapon.bullets += 20;
-    } else {
-      person.weapon = new Machinegun(20);
+    if (!(person.weapon instanceof Machinegun)) {
+      person.weapon = new Machinegun();
     }
   };
+
+  public readonly type = WeaponType.Machinegun;
+
+  public fireSound = new Sound("laser", 0.4, 0.1, 500);
 
   public cooldown = 7.5;
 
@@ -186,8 +209,11 @@ export class Machinegun extends Weapon {
           angle: angle + this.scatter(),
           isSensor: true,
         }),
-        600,
-        2
+        {
+          speed: 600,
+          ttl: 2,
+          damage: 1,
+        }
       ),
     ];
   }

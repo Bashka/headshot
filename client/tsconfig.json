@@ -9,7 +9,7 @@
       "esModuleInterop": true,
       "resolveJsonModule": true,
       "allowJs": true,
-      "experimentalDecorators": true,
+      "experimentalDecorators": true
     },
     "exclude": ["node_modules"]
   }
